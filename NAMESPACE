@@ -1,0 +1,12 @@
+exportPattern("^[[:alpha:]]+")
+
+# Imported packages and functions
+import(MSnbase)
+import(xcms)
+import(loadings)
+import(MsBackendMsp)
+import(methods)
+
+importFrom(MSnbase, readMSData, filterMsLevel, filterRt, bin)
+importFrom(xcms, findChromPeaks, CentWaveParam)
+importFrom(methods, new)
