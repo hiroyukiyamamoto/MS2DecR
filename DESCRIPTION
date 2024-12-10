@@ -1,0 +1,25 @@
+Package: MS2DecR
+Type: Package
+Title: Tools for MS/MS Spectral Deconvolution and Matching
+Version: 0.1.0
+Authors@R: 
+    person(given = "Hiroyuki",
+           family = "Yamamoto",
+           role = c("aut", "cre"),
+           email = "h.yama2396@gmail.com")
+Description: 
+    Provides advanced tools for processing, deconvolution, and identification 
+    of MS/MS spectral data. Includes functions for preprocessing spectra, 
+    applying Independent Component Analysis (ICA) and Alternating Least Squares (ALS), 
+    and matching deconvoluted spectra against spectral libraries.
+Depends: R (>= 4.0.0)
+Imports: 
+    MSnbase,
+    xcms,
+    loadings,
+    MsBackendMsp,
+    methods
+License: CC BY-NC-ND 4.0
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.2.3
