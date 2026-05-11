@@ -18,8 +18,8 @@ generation and spectral matching utilities.
   time range, and m/z bin size.
 - **Spectral matching** against reference spectra with configurable mass
   tolerance and similarity functions.
-- **Example data** for testing the MS-DIAL-like workflow without loading a raw
-  mzML file.
+- **Example data** for testing both the ICA/ALS workflow and the MS-DIAL-like
+  workflow without loading a raw `mzML` file.
 
 ## Installation
 
@@ -41,34 +41,41 @@ BiocManager::install(c("MSnbase", "xcms", "MsBackendMsp"))
 ## Quick Start
 
 The package includes an `msdial` example dataset that can be used to try the
-MS-DIAL-like deconvolution workflow immediately.
+main ICA/ALS-based deconvolution workflow immediately.
 
 ```r
 library(MS2DecR)
 
 data(msdial)
 
-msdial <- msdial_model(msdial)
-msdial$result$model$triplet_summary
+res <- deconvICA(
+  Y0 = msdial$Y,
+  com = 5,
+  lambda = 0.1,
+  maxiter = 50,
+  wid = 5,
+  gap = 1
+)
 
-msdial <- msdial_deconv(msdial)
-deconvoluted_spectra <- msdial$result$deconv$spectra
+component_chromatograms <- res$ALS$C
+component_spectra <- res$ALS$A
 
 matplot(
-  t(deconvoluted_spectra),
-  type = "h",
+  msdial$rt,
+  component_chromatograms,
+  type = "l",
   lty = 1,
-  xlab = "m/z bin",
+  xlab = "Retention time",
   ylab = "Intensity"
 )
 ```
 
-## MS-DIAL-like Workflow
+## MS-DIAL-like Deconvolution
 
-Alongside the ICA/ALS-based main workflow, `MS2DecR` also provides an R
-implementation of a simplified MS-DIAL-like deconvolution workflow. This
-workflow is intended for DIA/SWATH MS2 data where fragment chromatograms from
-multiple compounds overlap within the same precursor isolation window.
+Alongside the ICA/ALS-based main workflow, `MS2DecR` also provides a simplified
+MS-DIAL-like deconvolution workflow. This is another important feature of the
+package. It is intended for DIA/SWATH MS2 data where fragment chromatograms
+from multiple compounds overlap within the same precursor isolation window.
 
 The MS-DIAL-like workflow follows the same broad idea as MS-DIAL-style
 deconvolution:
@@ -121,8 +128,9 @@ msdial$result$deconv$spectra
 
 ## ICA/ALS Deconvolution
 
-Use `deconvICA()` directly when you already have an MS2 intensity matrix with
-retention-time scans in rows and m/z bins in columns.
+The main deconvolution workflow is implemented by `deconvICA()`. Use this
+function when you already have an MS2 intensity matrix with retention-time
+scans in rows and m/z bins in columns.
 
 ```r
 library(MS2DecR)
@@ -145,7 +153,8 @@ dim(res$ALS$A)  # component spectra
 ## Processing DIA/SWATH Data
 
 For raw DIA/SWATH data, first read the data with `MSnbase`, then generate an
-MS2 matrix for a precursor m/z and retention-time window.
+MS2 matrix for a precursor m/z and retention-time window. The resulting matrix
+can be passed to the ICA/ALS workflow.
 
 ```r
 library(MS2DecR)
@@ -164,7 +173,8 @@ res <- deconvICA(ms2_matrix$Y, com = 5, lambda = 0.1, maxiter = 50)
 ```
 
 For a higher-level workflow, use `process_ms2_data()` on a single target peak or
-`process_ms_data()` on a peak list.
+`process_ms_data()` on a peak list. These functions use the ICA/ALS-based
+deconvolution workflow internally.
 
 ```r
 peak <- list(mz = 290.1387, rtmin = 170, rtmax = 190)
