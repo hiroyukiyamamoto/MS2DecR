@@ -1,18 +1,21 @@
 # MS2DecR
 
 `MS2DecR` is an R package for processing and deconvolving MS/MS spectra from
-DIA/SWATH-style mass spectrometry data. It provides utilities for building MS2
-intensity matrices, resolving overlapping fragment chromatograms with
-ICA/ALS-based deconvolution, and comparing deconvoluted spectra with reference
-spectral libraries.
+DIA/SWATH-style mass spectrometry data. The main workflow is ICA/ALS-based
+deconvolution for resolving overlapping MS/MS components. Another important
+feature is a simplified MS-DIAL-like deconvolution workflow, which reconstructs
+component spectra from overlapping fragment chromatograms using model
+chromatograms and least-squares fitting. The package also provides MS2 matrix
+generation and spectral matching utilities.
 
 ## Features
 
+- **ICA/ALS-based deconvolution** for resolving overlapping MS/MS components
+  with an independent component analysis and ALS workflow.
+- **Simplified MS-DIAL-like deconvolution** using model chromatograms and
+  least-squares fragment fitting for DIA/SWATH MS2 deconvolution.
 - **MS2 matrix generation** from DIA/SWATH data by precursor m/z, retention
   time range, and m/z bin size.
-- **ICA/ALS deconvolution** for resolving overlapping MS/MS components.
-- **Simplified MS-DIAL-like workflow** using model chromatograms and
-  least-squares fragment fitting.
 - **Spectral matching** against reference spectra with configurable mass
   tolerance and similarity functions.
 - **Example data** for testing the MS-DIAL-like workflow without loading a raw
@@ -37,8 +40,8 @@ BiocManager::install(c("MSnbase", "xcms", "MsBackendMsp"))
 
 ## Quick Start
 
-The package includes an `msdial` example dataset that can be used to test the
-simplified MS-DIAL-like workflow.
+The package includes an `msdial` example dataset that can be used to try the
+MS-DIAL-like deconvolution workflow immediately.
 
 ```r
 library(MS2DecR)
@@ -58,6 +61,62 @@ matplot(
   xlab = "m/z bin",
   ylab = "Intensity"
 )
+```
+
+## MS-DIAL-like Workflow
+
+Alongside the ICA/ALS-based main workflow, `MS2DecR` also provides an R
+implementation of a simplified MS-DIAL-like deconvolution workflow. This
+workflow is intended for DIA/SWATH MS2 data where fragment chromatograms from
+multiple compounds overlap within the same precursor isolation window.
+
+The MS-DIAL-like workflow follows the same broad idea as MS-DIAL-style
+deconvolution:
+
+1. Detect candidate fragment chromatogram peaks.
+2. Group fragment peaks by nearby apex scans.
+3. Select representative model chromatograms around the focused peak.
+4. Fit each fragment chromatogram as a combination of the selected models.
+5. Reconstruct deconvoluted component spectra from the fitted coefficients.
+
+The implementation is intentionally lightweight and transparent. It does not
+aim to reproduce the full MS-DIAL algorithm exactly. Instead, it makes the
+model-chromatogram-based idea available inside an R package so that the model
+selection, fitting, and reconstructed spectra can be inspected directly.
+
+The two main functions are:
+
+- `msdial_model()`: detects fragment peak candidates, groups them, and builds
+  model chromatograms named `M1`, `M2`, and `M3`.
+- `msdial_deconv()`: fits fragment chromatograms using those model
+  chromatograms and returns deconvoluted spectra.
+
+The included `msdial` dataset is a precomputed example object prepared for this
+workflow. It contains an MS2 intensity matrix, m/z values, retention times, and
+a focused peak definition, so the workflow can be tested without loading a raw
+`mzML` file.
+
+```r
+library(MS2DecR)
+
+data(msdial)
+
+# Step 1: build model chromatograms
+msdial <- msdial_model(
+  msdial,
+  int_min = 300,
+  detect_fwhm = 5,
+  ideal_min = 0.95,
+  sharp_min = 0.02,
+  scan_gap = 1L
+)
+
+msdial$result$model$triplet_summary
+
+# Step 2: deconvolve fragment spectra using the selected models
+msdial <- msdial_deconv(msdial)
+
+msdial$result$deconv$spectra
 ```
 
 ## ICA/ALS Deconvolution
