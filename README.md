@@ -1,5 +1,7 @@
 # MS2DecR
 
+<img src="MS2DecR.png" alt="MS2DecR sticker" width="150"/>
+
 `MS2DecR` is an R package for processing and deconvolving MS/MS spectra from
 DIA/SWATH-style mass spectrometry data. The main workflow is ICA/ALS-based
 deconvolution for resolving overlapping MS/MS components. Another important
