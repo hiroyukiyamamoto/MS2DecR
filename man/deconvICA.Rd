@@ -5,10 +5,10 @@
 Performs ICA-based deconvolution on MS2 data to resolve overlapping components.
 }
 \usage{
-deconvICA(Y, com = 5, lambda = 0.1, maxiter = 50, wid = 5, gap = 5)
+deconvICA(Y0, com = 5, lambda = 0.1, maxiter = 50, wid = 0.5, gap = 3)
 }
 \arguments{
-  \item{Y}{
+  \item{Y0}{
     A numeric matrix where rows represent time points and columns represent m/z bins.
   }
   \item{com}{
@@ -21,10 +21,10 @@ deconvICA(Y, com = 5, lambda = 0.1, maxiter = 50, wid = 5, gap = 5)
     Maximum number of iterations for ALS optimization. Default is \code{50}.
   }
   \item{wid}{
-    Peak width parameter for deconvolution. Default is \code{5}.
+    Peak width parameter used in matched-filter-based peak detection.
   }
   \item{gap}{
-    Gap parameter for peak detection. Default is \code{5}.
+    Allowed gap between filtered and original peak tops in peak detection.
   }
 }
 \value{
@@ -38,9 +38,24 @@ A list containing:
 Hiroyuki Yamamoto
 }
 \examples{
-# Example usage:
-Y <- matrix(runif(5000, 0, 1), nrow = 100, ncol = 50)
-result <- deconvICA(Y, com = 5)
+library(MS2DecR)
+
+data(msdial)
+
+# The msdial dataset is a precomputed MS-DIAL-like example derived from
+# the HILIC positive SWATH example corresponding to the original MS-DIAL paper.
+res <- deconvICA(
+  Y0 = msdial$Y,
+  com = 5,
+  lambda = 0.1,
+  maxiter = 50,
+  wid = 5,
+  gap = 1
+)
+
+res$com
+dim(res$ALS$C)
+dim(res$ALS$A)
 }
 \seealso{
 \code{\link[Matrix]{Matrix}}, \code{\link[irlba]{irlba}}
