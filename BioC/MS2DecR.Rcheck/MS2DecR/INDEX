@@ -1,0 +1,18 @@
+deconvICA               ICA-Based Deconvolution of MS2 Data
+detectPeaks             Peak Detection in MS Spectral Data
+generate_ms2_matrix     Generate MS2 Data Matrix
+match_spectra           Match Experimental Spectra Against a Reference
+                        Library
+matchedfilter           Apply a Gaussian Matched Filter
+msdial                  MS-DIAL-like example data for simplified MS2
+                        deconvolution
+msdial_deconv           Perform simplified MS-DIAL-like MS2
+                        deconvolution
+msdial_model            Build simplified MS-DIAL-like model
+                        chromatograms
+optimizeALS             Alternating Least Squares (ALS) Optimization
+                        for Deconvolution
+performICA              Independent Component Analysis (ICA) for
+                        Spectral Data
+process_ms2_data        Process MS2 Data for Deconvolution
+process_ms_data         Full Workflow for Processing MS Data
