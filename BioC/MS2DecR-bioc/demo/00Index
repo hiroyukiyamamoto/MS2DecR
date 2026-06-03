@@ -1,0 +1,5 @@
+demo1   ICA/ALS deconvolution example using the msdial dataset
+demo2   MS-DIAL-like model chromatogram example
+demo3   MS-DIAL-like deconvolution example
+demo4   MS2 matrix generation example
+demo7   Spectral matching example
