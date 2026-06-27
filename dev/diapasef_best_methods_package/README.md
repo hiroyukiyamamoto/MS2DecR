@@ -83,23 +83,30 @@ results/images/best_msdial_like_window_baseline_summary.png
 
 ```text
 fastICA initialization
-overcomplete joint MCR-ALS, k = 5
-RT/IM peak selection
-selected C/M fixed
-window + baseline A-only refit
+overcomplete joint MCR-ALS, k = 5, maxiter = 500
+A 正規化 (MS2DecR optimizeALS と同じ)
+最小誤差 iteration 選択
+RT peak picking: wid = 5, max_local_peaks = 2
+IM peak picking: wid = 7, max_local_peaks = 3
+A は再推定しない (5成分 ALS の結果をそのまま使用)
+```
+
+ピークピッキング結果:
+
+```text
+成分    RT通過  IM通過  両方通過
+ALS1    ○       ×       ×
+ALS2    ×       ×       ×
+ALS3    ×       ○       ×
+ALS4    ○       ○       ○  → S8_phospho
+ALS5    ○       ○       ○  → S1_phospho
 ```
 
 結果:
 
 ```text
-S8_best_purity 0.769
-S1_best_purity 0.742
-```
-
-画像:
-
-```text
-results/images/best_mcr_als_peak_selected_Aonly_summary.png
+ALS4 -> S8_phospho purity 0.814
+ALS5 -> S1_phospho purity 0.719
 ```
 
 ## 結論
@@ -107,5 +114,10 @@ results/images/best_mcr_als_peak_selected_Aonly_summary.png
 今回の Fig.6 データでは、MS-DIAL-like のモデル抽出と window/baseline つき
 共通 `A` 推定が最も良い結果でした。
 
-MCR-ALS は、fastICA + overcomplete + peak selection + A-only refit まで入れると
-改善しますが、site-localizing spectrum の purity では MS-DIAL-like に届きませんでした。
+MCR-ALS は、A 正規化・最小誤差選択・maxiter=500 に修正し、
+IM 側の max_local_peaks を 3 に緩めることで S8=0.814 まで改善しましたが、
+S1=0.719 は MS-DIAL-like (0.771) に届きませんでした。
+
+なお、ICA 単独（ALS 繰り返しなし）では S1 purity が 0.96〜1.00 と
+非常に高くなりますが、この評価は fragment の site ラベル割合のみで、
+正解 MS/MS スペクトルとの比較は未実施です。
