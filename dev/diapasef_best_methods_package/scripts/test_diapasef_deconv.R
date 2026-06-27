@@ -276,54 +276,105 @@ pair_components_by_spectra <- function(C, M, X, Y, lambda = 1e-6) {
   order_m
 }
 
-joint_mcr_als <- function(X, Y, k = 2, lambda = 1e-6, maxiter = 100, C_init = NULL, M_init = NULL) {
+joint_mcr_als <- function(X, Y, k = 2, lambda = 1e-6, maxiter = 500, C_init = NULL, M_init = NULL) {
   C <- if (is.null(C_init)) ica_profiles(X, k) else C_init
   M <- if (is.null(M_init)) ica_profiles(Y, k) else M_init
   M <- M[, pair_components_by_spectra(C, M, X, Y, lambda), drop = FALSE]
 
+  Alist <- list()
+  Clist <- list()
+  Mlist <- list()
   err <- numeric(maxiter)
+
   for (iter in seq_len(maxiter)) {
     A <- solve_common_spectrum(X, Y, C, M, lambda)
+    A[!is.finite(A)] <- 0
+    A <- pmax(A, 0)
+    for (i in seq_len(k)) {
+      s <- sqrt(sum(A[i, ]^2))
+      if (is.finite(s) && s > 0) A[i, ] <- A[i, ] / s
+    }
     gram <- A %*% t(A) + lambda * diag(k)
     C <- X %*% t(A) %*% solve(gram)
     M <- Y %*% t(A) %*% solve(gram)
     C <- pmax(C, 0)
     M <- pmax(M, 0)
-    for (i in seq_len(k)) {
-      s <- sqrt(sum(C[, i]^2) + sum(M[, i]^2))
-      if (is.finite(s) && s > 0) {
-        C[, i] <- C[, i] / s
-        M[, i] <- M[, i] / s
-      }
-    }
+
     err[iter] <- joint_error(X, Y, C, M, A)
+    Alist[[iter]] <- A
+    Clist[[iter]] <- C
+    Mlist[[iter]] <- M
   }
-  A <- solve_common_spectrum(X, Y, C, M, lambda)
+
+  best <- which.min(err)
+  A <- Alist[[best]]
+  C <- Clist[[best]]
+  M <- Mlist[[best]]
   colnames(C) <- colnames(M) <- rownames(A) <- paste0("ALS", seq_len(k))
   list(C = C, M = M, A = A, error = err)
 }
 
-profile_peak_score <- function(x, wid = 3, gap = 4) {
+profile_peak_score <- function(x,
+                               wid = 3,
+                               gap = 4,
+                               max_local_peaks = 2L,
+                               smooth_width = 5,
+                               local_peak_frac = 0.25,
+                               require_filtered_close = TRUE) {
   x <- pmax(as.numeric(x), 0)
   if (!any(x > 0) || length(x) < 7L) {
-    return(list(pass = FALSE, score = 0, apex = NA_integer_, filtered_apex = NA_integer_))
+    return(list(
+      pass = FALSE,
+      score = 0,
+      apex = NA_integer_,
+      filtered_apex = NA_integer_,
+      close = FALSE,
+      n_peaks = NA_integer_
+    ))
   }
-  filtered <- matchedfilter(x, wid)$filtered_signal
+  xs <- pmax(smooth_trace(x, width = smooth_width), 0)
+  filtered <- matchedfilter(xs, wid)$filtered_signal
   filtered[!is.finite(filtered)] <- 0
-  apex <- which.max(x)
+  apex <- which.max(xs)
   filtered_apex <- which.max(filtered)
   close <- abs(filtered_apex - apex) <= gap
-  n_peaks <- local_peak_count(smooth_trace(x), frac = 0.25)
-  sharp <- max(x, na.rm = TRUE) / max(sum(x > 0), 1)
-  score <- max(x, na.rm = TRUE) * sharp / (1 + n_peaks)
-  list(pass = close && n_peaks <= 2L, score = score, apex = apex, filtered_apex = filtered_apex)
+  n_peaks <- local_peak_count(xs, frac = local_peak_frac)
+  sharp <- max(xs, na.rm = TRUE) / max(sum(xs > 0), 1)
+  score <- max(xs, na.rm = TRUE) * sharp / (1 + n_peaks)
+  list(
+    pass = (!require_filtered_close || close) && n_peaks <= max_local_peaks,
+    score = score,
+    apex = apex,
+    filtered_apex = filtered_apex,
+    close = close,
+    n_peaks = n_peaks
+  )
 }
 
-select_joint_mcr_peak_components <- function(fit, min_keep = 2L, max_keep = 5L) {
+select_joint_mcr_peak_components <- function(fit,
+                                             min_keep = 2L,
+                                             max_keep = 5L,
+                                             c_wid = 5,
+                                             c_gap = 5,
+                                             c_max_local_peaks = 2L,
+                                             m_wid = 3,
+                                             m_gap = 5,
+                                             m_max_local_peaks = 2L,
+                                             m_smooth_width = 5,
+                                             m_local_peak_frac = 0.25,
+                                             m_require_filtered_close = TRUE) {
   k <- nrow(fit$A)
   rows <- lapply(seq_len(k), function(i) {
-    c_peak <- profile_peak_score(fit$C[, i], wid = 5, gap = 5)
-    m_peak <- profile_peak_score(fit$M[, i], wid = 3, gap = 5)
+    c_peak <- profile_peak_score(fit$C[, i], wid = c_wid, gap = c_gap, max_local_peaks = c_max_local_peaks)
+    m_peak <- profile_peak_score(
+      fit$M[, i],
+      wid = m_wid,
+      gap = m_gap,
+      max_local_peaks = m_max_local_peaks,
+      smooth_width = m_smooth_width,
+      local_peak_frac = m_local_peak_frac,
+      require_filtered_close = m_require_filtered_close
+    )
     spec_sum <- sum(fit$A[i, ], na.rm = TRUE)
     data.frame(
       component = rownames(fit$A)[i],
@@ -332,6 +383,12 @@ select_joint_mcr_peak_components <- function(fit, min_keep = 2L, max_keep = 5L) 
       m_pass = m_peak$pass,
       c_apex = c_peak$apex,
       m_apex = m_peak$apex,
+      c_filtered_apex = c_peak$filtered_apex,
+      m_filtered_apex = m_peak$filtered_apex,
+      c_close = c_peak$close,
+      m_close = m_peak$close,
+      c_n_peaks = c_peak$n_peaks,
+      m_n_peaks = m_peak$n_peaks,
       score = c_peak$score * m_peak$score * log1p(spec_sum),
       spec_sum = spec_sum,
       stringsAsFactors = FALSE
@@ -578,16 +635,47 @@ rownames(A_rt070_im060) <- names(rt_model_sites)
 fit_rt070_im060_bl <- solve_common_spectrum_window_baseline(X, Y, C_rt070, M_im060)
 A_rt070_im060_bl <- fit_rt070_im060_bl$spectra
 
-als <- joint_mcr_als(X, Y, k = 2, maxiter = 100)
-als_model_init <- joint_mcr_als(X, Y, k = 2, maxiter = 100, C_init = C_model, M_init = M_model)
-als_over <- joint_mcr_als(X, Y, k = 5, maxiter = 100)
+als <- joint_mcr_als(X, Y, k = 2)
+als_model_init <- joint_mcr_als(X, Y, k = 2, C_init = C_model, M_init = M_model)
+als_over <- joint_mcr_als(X, Y, k = 5)
 als_over_selected <- select_joint_mcr_peak_components(als_over, min_keep = 2L, max_keep = 5L)
+als_over_selected_mloose <- select_joint_mcr_peak_components(
+  als_over,
+  min_keep = 2L,
+  max_keep = 5L,
+  m_gap = 8,
+  m_max_local_peaks = 4L
+)
+als_over_selected_mshape <- select_joint_mcr_peak_components(
+  als_over,
+  min_keep = 2L,
+  max_keep = 5L,
+  m_gap = 8,
+  m_max_local_peaks = 6L,
+  m_smooth_width = 7,
+  m_local_peak_frac = 0.50,
+  m_require_filtered_close = FALSE
+)
 als_over_selected_Aonly <- als_over_selected
 als_over_selected_Aonly$A <- solve_common_spectrum_window_baseline(
   X,
   Y,
   als_over_selected$C,
   als_over_selected$M
+)$spectra
+als_over_selected_mloose_Aonly <- als_over_selected_mloose
+als_over_selected_mloose_Aonly$A <- solve_common_spectrum_window_baseline(
+  X,
+  Y,
+  als_over_selected_mloose$C,
+  als_over_selected_mloose$M
+)$spectra
+als_over_selected_mshape_Aonly <- als_over_selected_mshape
+als_over_selected_mshape_Aonly$A <- solve_common_spectrum_window_baseline(
+  X,
+  Y,
+  als_over_selected_mshape$C,
+  als_over_selected_mshape$M
 )$spectra
 als_over_selected_reals <- joint_mcr_als(
   X,
@@ -611,10 +699,18 @@ als_model_init_purity <- site_purity(als_model_init$A, labels)
 als_over_purity <- site_purity(als_over$A, labels)
 als_over_selected_purity <- site_purity(als_over_selected$A, labels)
 als_over_selected_Aonly_purity <- site_purity(als_over_selected_Aonly$A, labels)
+als_over_selected_mloose_purity <- site_purity(als_over_selected_mloose$A, labels)
+als_over_selected_mloose_Aonly_purity <- site_purity(als_over_selected_mloose_Aonly$A, labels)
+als_over_selected_mshape_purity <- site_purity(als_over_selected_mshape$A, labels)
+als_over_selected_mshape_Aonly_purity <- site_purity(als_over_selected_mshape_Aonly$A, labels)
 als_over_selected_reals_purity <- site_purity(als_over_selected_reals$A, labels)
 als_strategy_comparison <- do.call(rbind, list(
   summarize_site_purity("A_peak_select_only", als_over_selected_purity, tail(als_over$error, 1)),
   summarize_site_purity("B_fixed_CM_window_baseline_A_only", als_over_selected_Aonly_purity, NA_real_),
+  summarize_site_purity("B2_mobility_loose_peak_select_only", als_over_selected_mloose_purity, tail(als_over$error, 1)),
+  summarize_site_purity("B3_mobility_loose_fixed_CM_A_only", als_over_selected_mloose_Aonly_purity, NA_real_),
+  summarize_site_purity("B4_mobility_shape_peak_select_only", als_over_selected_mshape_purity, tail(als_over$error, 1)),
+  summarize_site_purity("B5_mobility_shape_fixed_CM_A_only", als_over_selected_mshape_Aonly_purity, NA_real_),
   summarize_site_purity("C_reALS_after_peak_select", als_over_selected_reals_purity, tail(als_over_selected_reals$error, 1)),
   summarize_site_purity("MSDIAL_like_window_baseline_reference", rt070_im060_bl_purity, NA_real_)
 ))
@@ -631,6 +727,10 @@ als_model_init_top <- top_fragments(als_model_init$A)
 als_over_top <- top_fragments(als_over$A)
 als_over_selected_top <- top_fragments(als_over_selected$A)
 als_over_selected_Aonly_top <- top_fragments(als_over_selected_Aonly$A)
+als_over_selected_mloose_top <- top_fragments(als_over_selected_mloose$A)
+als_over_selected_mloose_Aonly_top <- top_fragments(als_over_selected_mloose_Aonly$A)
+als_over_selected_mshape_top <- top_fragments(als_over_selected_mshape$A)
+als_over_selected_mshape_Aonly_top <- top_fragments(als_over_selected_mshape_Aonly$A)
 als_over_selected_reals_top <- top_fragments(als_over_selected_reals$A)
 
 write.csv(model_purity, file.path(out_dir, "msdial_like_commonA_purity.csv"), row.names = FALSE)
@@ -656,6 +756,12 @@ write.csv(als_over_purity, file.path(out_dir, "mcr_als_overcomplete_commonA_puri
 write.csv(als_over_selected$component_table, file.path(out_dir, "mcr_als_overcomplete_component_table.csv"), row.names = FALSE)
 write.csv(als_over_selected_purity, file.path(out_dir, "mcr_als_overcomplete_peak_selected_commonA_purity.csv"), row.names = FALSE)
 write.csv(als_over_selected_Aonly_purity, file.path(out_dir, "mcr_als_overcomplete_peak_selected_Aonly_purity.csv"), row.names = FALSE)
+write.csv(als_over_selected_mloose$component_table, file.path(out_dir, "mcr_als_overcomplete_mobility_loose_component_table.csv"), row.names = FALSE)
+write.csv(als_over_selected_mloose_purity, file.path(out_dir, "mcr_als_overcomplete_mobility_loose_peak_selected_purity.csv"), row.names = FALSE)
+write.csv(als_over_selected_mloose_Aonly_purity, file.path(out_dir, "mcr_als_overcomplete_mobility_loose_Aonly_purity.csv"), row.names = FALSE)
+write.csv(als_over_selected_mshape$component_table, file.path(out_dir, "mcr_als_overcomplete_mobility_shape_component_table.csv"), row.names = FALSE)
+write.csv(als_over_selected_mshape_purity, file.path(out_dir, "mcr_als_overcomplete_mobility_shape_peak_selected_purity.csv"), row.names = FALSE)
+write.csv(als_over_selected_mshape_Aonly_purity, file.path(out_dir, "mcr_als_overcomplete_mobility_shape_Aonly_purity.csv"), row.names = FALSE)
 write.csv(als_over_selected_reals_purity, file.path(out_dir, "mcr_als_overcomplete_peak_selected_reals_purity.csv"), row.names = FALSE)
 write.csv(als_strategy_comparison, file.path(out_dir, "mcr_als_strategy_comparison.csv"), row.names = FALSE)
 write.csv(model_top, file.path(out_dir, "msdial_like_commonA_top_fragments.csv"), row.names = FALSE)
@@ -671,6 +777,10 @@ write.csv(als_model_init_top, file.path(out_dir, "mcr_als_model_init_commonA_top
 write.csv(als_over_top, file.path(out_dir, "mcr_als_overcomplete_commonA_top_fragments.csv"), row.names = FALSE)
 write.csv(als_over_selected_top, file.path(out_dir, "mcr_als_overcomplete_peak_selected_commonA_top_fragments.csv"), row.names = FALSE)
 write.csv(als_over_selected_Aonly_top, file.path(out_dir, "mcr_als_overcomplete_peak_selected_Aonly_top_fragments.csv"), row.names = FALSE)
+write.csv(als_over_selected_mloose_top, file.path(out_dir, "mcr_als_overcomplete_mobility_loose_peak_selected_top_fragments.csv"), row.names = FALSE)
+write.csv(als_over_selected_mloose_Aonly_top, file.path(out_dir, "mcr_als_overcomplete_mobility_loose_Aonly_top_fragments.csv"), row.names = FALSE)
+write.csv(als_over_selected_mshape_top, file.path(out_dir, "mcr_als_overcomplete_mobility_shape_peak_selected_top_fragments.csv"), row.names = FALSE)
+write.csv(als_over_selected_mshape_Aonly_top, file.path(out_dir, "mcr_als_overcomplete_mobility_shape_Aonly_top_fragments.csv"), row.names = FALSE)
 write.csv(als_over_selected_reals_top, file.path(out_dir, "mcr_als_overcomplete_peak_selected_reals_top_fragments.csv"), row.names = FALSE)
 
 plot_profiles(chrom$axis, C_model, "MS-DIAL-like model chromatograms", "RT (min)", file.path(out_dir, "msdial_like_model_chromatograms.png"))
@@ -690,6 +800,8 @@ plot_profiles(chrom$axis, als_over$C, "Overcomplete joint MCR-ALS chromatographi
 plot_profiles(mobil$axis, als_over$M, "Overcomplete joint MCR-ALS mobility profiles", "1/K0", file.path(out_dir, "mcr_als_overcomplete_mobilograms.png"))
 plot_profiles(chrom$axis, als_over_selected$C, "Peak-selected overcomplete MCR-ALS chromatographic profiles", "RT (min)", file.path(out_dir, "mcr_als_overcomplete_peak_selected_chromatograms.png"))
 plot_profiles(mobil$axis, als_over_selected$M, "Peak-selected overcomplete MCR-ALS mobility profiles", "1/K0", file.path(out_dir, "mcr_als_overcomplete_peak_selected_mobilograms.png"))
+plot_profiles(chrom$axis, als_over_selected_mshape$C, "Mobility-shape selected overcomplete MCR-ALS chromatographic profiles", "RT (min)", file.path(out_dir, "mcr_als_overcomplete_mobility_shape_chromatograms.png"))
+plot_profiles(mobil$axis, als_over_selected_mshape$M, "Mobility-shape selected overcomplete MCR-ALS mobility profiles", "1/K0", file.path(out_dir, "mcr_als_overcomplete_mobility_shape_mobilograms.png"))
 plot_deconv_summary(chrom$axis, mobil$axis, C_model, M_model, A_model, labels,
                     "MS-DIAL-like common-A deconvolution",
                     file.path(out_dir, "msdial_like_deconvolution_summary.png"))
@@ -714,12 +826,27 @@ plot_deconv_summary(chrom$axis, mobil$axis, als$C, als$M, als$A, labels,
 plot_deconv_summary(chrom$axis, mobil$axis, als_model_init$C, als_model_init$M, als_model_init$A, labels,
                     "Model-initialized MCR-ALS common-A deconvolution",
                     file.path(out_dir, "mcr_als_model_init_deconvolution_summary.png"))
+plot_deconv_summary(chrom$axis, mobil$axis, als_over$C, als_over$M, als_over$A, labels,
+                    "Overcomplete MCR-ALS all 5 components before peak selection",
+                    file.path(out_dir, "mcr_als_overcomplete_all_components_deconvolution_summary.png"))
 plot_deconv_summary(chrom$axis, mobil$axis, als_over_selected$C, als_over_selected$M, als_over_selected$A, labels,
                     "Overcomplete peak-selected MCR-ALS common-A deconvolution",
                     file.path(out_dir, "mcr_als_overcomplete_peak_selected_deconvolution_summary.png"))
 plot_deconv_summary(chrom$axis, mobil$axis, als_over_selected_Aonly$C, als_over_selected_Aonly$M, als_over_selected_Aonly$A, labels,
                     "Overcomplete MCR-ALS selected C/M fixed, A-only refit",
                     file.path(out_dir, "mcr_als_overcomplete_peak_selected_Aonly_deconvolution_summary.png"))
+plot_deconv_summary(chrom$axis, mobil$axis, als_over_selected_mloose$C, als_over_selected_mloose$M, als_over_selected_mloose$A, labels,
+                    "Overcomplete MCR-ALS mobility-loose peak selection",
+                    file.path(out_dir, "mcr_als_overcomplete_mobility_loose_peak_selected_deconvolution_summary.png"))
+plot_deconv_summary(chrom$axis, mobil$axis, als_over_selected_mloose_Aonly$C, als_over_selected_mloose_Aonly$M, als_over_selected_mloose_Aonly$A, labels,
+                    "Overcomplete MCR-ALS mobility-loose selected C/M fixed, A-only refit",
+                    file.path(out_dir, "mcr_als_overcomplete_mobility_loose_Aonly_deconvolution_summary.png"))
+plot_deconv_summary(chrom$axis, mobil$axis, als_over_selected_mshape$C, als_over_selected_mshape$M, als_over_selected_mshape$A, labels,
+                    "Overcomplete MCR-ALS mobility-shape peak selection",
+                    file.path(out_dir, "mcr_als_overcomplete_mobility_shape_peak_selected_deconvolution_summary.png"))
+plot_deconv_summary(chrom$axis, mobil$axis, als_over_selected_mshape_Aonly$C, als_over_selected_mshape_Aonly$M, als_over_selected_mshape_Aonly$A, labels,
+                    "Overcomplete MCR-ALS mobility-shape selected C/M fixed, A-only refit",
+                    file.path(out_dir, "mcr_als_overcomplete_mobility_shape_Aonly_deconvolution_summary.png"))
 plot_deconv_summary(chrom$axis, mobil$axis, als_over_selected_reals$C, als_over_selected_reals$M, als_over_selected_reals$A, labels,
                     "Overcomplete MCR-ALS re-ALS after peak selection",
                     file.path(out_dir, "mcr_als_overcomplete_peak_selected_reals_deconvolution_summary.png"))
@@ -815,6 +942,28 @@ cat(
   paste(capture.output(print(als_over_selected_Aonly_purity, row.names = FALSE)), collapse = "\n"),
   "\n\nTop fragments:\n\n",
   paste(capture.output(print(als_over_selected_Aonly_top, row.names = FALSE)), collapse = "\n"),
+  "\n\n### B2. Mobility-loose peak selection\n\n",
+  "Component selection table:\n\n",
+  paste(capture.output(print(als_over_selected_mloose$component_table, row.names = FALSE)), collapse = "\n"),
+  "\n\n",
+  paste(capture.output(print(als_over_selected_mloose_purity, row.names = FALSE)), collapse = "\n"),
+  "\n\nTop fragments:\n\n",
+  paste(capture.output(print(als_over_selected_mloose_top, row.names = FALSE)), collapse = "\n"),
+  "\n\n### B3. Mobility-loose fixed C/M, A-only window-baseline refit\n\n",
+  paste(capture.output(print(als_over_selected_mloose_Aonly_purity, row.names = FALSE)), collapse = "\n"),
+  "\n\nTop fragments:\n\n",
+  paste(capture.output(print(als_over_selected_mloose_Aonly_top, row.names = FALSE)), collapse = "\n"),
+  "\n\n### B4. Mobility-shape peak selection\n\n",
+  "Component selection table:\n\n",
+  paste(capture.output(print(als_over_selected_mshape$component_table, row.names = FALSE)), collapse = "\n"),
+  "\n\n",
+  paste(capture.output(print(als_over_selected_mshape_purity, row.names = FALSE)), collapse = "\n"),
+  "\n\nTop fragments:\n\n",
+  paste(capture.output(print(als_over_selected_mshape_top, row.names = FALSE)), collapse = "\n"),
+  "\n\n### B5. Mobility-shape fixed C/M, A-only window-baseline refit\n\n",
+  paste(capture.output(print(als_over_selected_mshape_Aonly_purity, row.names = FALSE)), collapse = "\n"),
+  "\n\nTop fragments:\n\n",
+  paste(capture.output(print(als_over_selected_mshape_Aonly_top, row.names = FALSE)), collapse = "\n"),
   "\n\n### C. Re-ALS after peak selection\n\n",
   paste(capture.output(print(als_over_selected_reals_purity, row.names = FALSE)), collapse = "\n"),
   "\n\nTop fragments:\n\n",
@@ -830,8 +979,13 @@ cat(
   "- `ms2decr_rt070_im060_window_baseline_deconvolution_summary.png`\n",
   "- `mcr_als_deconvolution_summary.png`\n",
   "- `mcr_als_model_init_deconvolution_summary.png`\n",
+  "- `mcr_als_overcomplete_all_components_deconvolution_summary.png`\n",
   "- `mcr_als_overcomplete_peak_selected_deconvolution_summary.png`\n",
   "- `mcr_als_overcomplete_peak_selected_Aonly_deconvolution_summary.png`\n",
+  "- `mcr_als_overcomplete_mobility_loose_peak_selected_deconvolution_summary.png`\n",
+  "- `mcr_als_overcomplete_mobility_loose_Aonly_deconvolution_summary.png`\n",
+  "- `mcr_als_overcomplete_mobility_shape_peak_selected_deconvolution_summary.png`\n",
+  "- `mcr_als_overcomplete_mobility_shape_Aonly_deconvolution_summary.png`\n",
   "- `mcr_als_overcomplete_peak_selected_reals_deconvolution_summary.png`\n",
   file = summary_file,
   sep = ""
@@ -883,5 +1037,17 @@ cat("\nMCR-ALS post-selection strategy comparison:\n")
 print(als_strategy_comparison, row.names = FALSE)
 cat("\nFixed C/M A-only refit purity:\n")
 print(als_over_selected_Aonly_purity, row.names = FALSE)
+cat("\nMobility-loose peak-selected MCR-ALS component table:\n")
+print(als_over_selected_mloose$component_table, row.names = FALSE)
+cat("\nMobility-loose peak-selected MCR-ALS purity:\n")
+print(als_over_selected_mloose_purity, row.names = FALSE)
+cat("\nMobility-loose fixed C/M A-only refit purity:\n")
+print(als_over_selected_mloose_Aonly_purity, row.names = FALSE)
+cat("\nMobility-shape peak-selected MCR-ALS component table:\n")
+print(als_over_selected_mshape$component_table, row.names = FALSE)
+cat("\nMobility-shape peak-selected MCR-ALS purity:\n")
+print(als_over_selected_mshape_purity, row.names = FALSE)
+cat("\nMobility-shape fixed C/M A-only refit purity:\n")
+print(als_over_selected_mshape_Aonly_purity, row.names = FALSE)
 cat("\nRe-ALS after peak selection purity:\n")
 print(als_over_selected_reals_purity, row.names = FALSE)
