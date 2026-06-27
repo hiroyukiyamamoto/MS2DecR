@@ -3,9 +3,9 @@ exportPattern("^[[:alpha:]]+")
 # Imported packages and functions
 import(MSnbase)
 import(xcms)
-import(loadings)
 import(MsBackendMsp)
 import(methods)
+importFrom(fastICA, fastICA)
 
 importFrom(MSnbase, readMSData, filterMsLevel, filterRt, bin)
 importFrom(xcms, findChromPeaks, CentWaveParam)
