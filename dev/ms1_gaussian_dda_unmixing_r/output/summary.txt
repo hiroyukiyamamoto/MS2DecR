@@ -1,0 +1,28 @@
+Output directory: C:/Users/hyama/Documents/DDA/ms1_gaussian_dda_unmixing_r/output
+DDA-MS2 scan count: 2
+Condition number of A: 1.612
+Correlation true vs inverse Leu: 0.9994
+Correlation true vs inverse Ile: 0.998
+Correlation true vs NNLS Leu: 0.9994
+Correlation true vs NNLS Ile: 0.998
+
+Design matrix A:
+                    Leu       Ile
+Leu_apex_scan 120000.00  23006.63
+Ile_apex_scan  21831.41 100000.00
+
+Estimated spectra:
+ fragment_mz true_leucine inverse_leucine nnls_leucine true_isoleucine
+          30         0.12      0.15253922   0.15253922            0.10
+          41         0.20      0.19338902   0.19338902            0.62
+          44         0.75      0.74388686   0.74388686            0.22
+          69         0.08      0.09003315   0.09003315            0.80
+          86         1.00      1.00000000   1.00000000            1.00
+         132         0.18      0.17744114   0.17744114            0.15
+ inverse_isoleucine nnls_isoleucine wrong_merged_estimate
+         0.07355337      0.07355337             0.1172065
+         0.59648212      0.59648212             0.3737044
+         0.20197900      0.20197900             0.5014756
+         0.77133077      0.77133077             0.3947975
+         1.00000000      1.00000000             1.0000000
+         0.18365241      0.18365241             0.1802196
