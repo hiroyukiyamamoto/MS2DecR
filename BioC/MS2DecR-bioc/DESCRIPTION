@@ -14,13 +14,13 @@ Description:
     and matching deconvoluted spectra against spectral libraries.
 Depends: R (>= 4.0.0)
 Imports: 
-    ica,
     MSnbase,
     xcms,
     MsBackendMsp,
     MASS,
     Spectra,
-    methods
+    methods,
+    fastICA
 Suggests:
     S4Vectors
 License: CC BY-NC-ND 4.0
