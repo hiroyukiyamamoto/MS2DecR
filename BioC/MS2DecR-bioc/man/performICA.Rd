@@ -2,7 +2,8 @@
 \alias{performICA}
 \title{Independent Component Analysis (ICA) for Spectral Data}
 \description{
-Applies ICA to decompose spectral data into independent components.
+Applies \pkg{fastICA}-based ICA to decompose spectral data into independent
+components.
 }
 \usage{
 performICA(Y0, com)
@@ -29,6 +30,9 @@ Hiroyuki Yamamoto
 # Example usage:
 Y0 <- matrix(runif(5000, 0, 1), nrow = 100, ncol = 50)
 result <- performICA(Y0, com = 5)
+}
+\seealso{
+\code{\link[fastICA]{fastICA}}
 }
 \keyword{ICA}
 \keyword{dimensionality reduction}
