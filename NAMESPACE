@@ -1,4 +1,12 @@
 exportPattern("^[[:alpha:]]+")
+export(msdial_joint)
+export(msdial_joint_deconv)
+export(msdial_joint_model)
+export(jointALS)
+export(optimizeJointALS)
+export(detectJointALSPeaks)
+export(refitJointALSSpectra)
+export(selectJointALSComponents)
 
 # Imported packages and functions
 import(MSnbase)

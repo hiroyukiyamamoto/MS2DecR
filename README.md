@@ -128,6 +128,43 @@ msdial <- msdial_deconv(msdial)
 msdial$result$deconv$spectra
 ```
 
+## dia-PASEF Joint MS-DIAL-like Workflow
+
+For prepared dia-PASEF matrices, `MS2DecR` also provides an experimental
+two-axis MS-DIAL-like workflow. It applies the existing model-building logic to
+the RT and ion-mobility axes separately, then matches model chromatograms and
+model mobilograms by preliminary MS/MS spectral similarity.
+
+```r
+library(MS2DecR)
+
+data(diapasef_phospho_fig6)
+
+model <- msdial_joint_model(
+  X = diapasef_phospho_fig6$X,
+  Y = diapasef_phospho_fig6$Y,
+  mz = diapasef_phospho_fig6$mz,
+  rt = diapasef_phospho_fig6$rt,
+  im = diapasef_phospho_fig6$im,
+  rt_range = c(17.6, 18.6)
+)
+
+joint <- msdial_joint(
+  model,
+  rt_models = "center",
+  im_models = "candidates"
+)
+
+fit <- msdial_joint_deconv(
+  joint,
+  X = diapasef_phospho_fig6$X,
+  Y = diapasef_phospho_fig6$Y
+)
+
+joint$alignment
+fit$A
+```
+
 ## ICA/ALS Deconvolution
 
 The main deconvolution workflow is implemented by `deconvICA()`. Use this
@@ -202,6 +239,21 @@ processed <- process_ms2_data(
 - `detectPeaks()`: detect chromatographic peaks in component profiles.
 - `msdial_model()`: build simplified MS-DIAL-like model chromatograms.
 - `msdial_deconv()`: deconvolve spectra with the selected model chromatograms.
+- `msdial_joint_model()`: build RT model chromatograms and ion-mobility model
+  mobilograms from prepared dia-PASEF matrices.
+- `msdial_joint()`: match RT and ion-mobility models by preliminary MS/MS
+  spectral similarity.
+- `msdial_joint_deconv()`: estimate shared MS/MS spectra from matched RT and
+  ion-mobility models.
+- `jointALS()`: run joint ALS for RT and ion-mobility matrices with shared
+  MS/MS spectra.
+- `optimizeJointALS()`: optimize joint ALS from supplied RT and ion-mobility
+  initial profiles.
+- `detectJointALSPeaks()`: filter joint ALS components by RT and IM peak shape.
+- `selectJointALSComponents()`: select components from overcomplete joint ALS
+  results.
+- `refitJointALSSpectra()`: refit shared MS/MS spectra with fixed RT and IM
+  profiles.
 - `match_spectra()`: calculate similarity to reference library spectra.
 - `process_ms2_data()`: process and deconvolve one target MS2 region.
 - `process_ms_data()`: run a full workflow over a peak list.
