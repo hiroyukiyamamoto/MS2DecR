@@ -1,0 +1,2 @@
+label	rt_min_lower	rt_min_upper	im_lower	im_upper	precursor_mz	fragment_mz_lower	fragment_mz_upper	raw_peak_rows	cube_rows	total_intensity	max_peak_intensity	max_cube_intensity
+both_deconv	17.6	18.7	0.93	0.97	829.8746	150	1500	197659	197202	14903345	1131	1398

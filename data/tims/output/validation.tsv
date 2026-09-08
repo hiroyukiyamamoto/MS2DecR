@@ -1,0 +1,4 @@
+label	raw_rows	cube_rows	total_intensity	range_check	intensity_conserved
+both_deconv	197659	197202	14903345	TRUE	TRUE
+S1_box	8948	8905	736252	TRUE	TRUE
+S8_box	6366	6366	516612	TRUE	TRUE

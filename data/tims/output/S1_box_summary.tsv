@@ -1,0 +1,2 @@
+label	rt_min_lower	rt_min_upper	im_lower	im_upper	precursor_mz	fragment_mz_lower	fragment_mz_upper	raw_peak_rows	cube_rows	total_intensity	max_peak_intensity	max_cube_intensity
+S1_box	18.4	18.5	0.932	0.948	829.8746	150	1500	8948	8905	736252	902	1338

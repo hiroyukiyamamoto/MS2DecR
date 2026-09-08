@@ -1,0 +1,6 @@
+/raw/
+/lib/
+/regenerated/
+/output/*_raw_peaks.tsv
+/output/*_cube_binned.tsv
+*.log
