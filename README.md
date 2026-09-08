@@ -165,6 +165,66 @@ joint$alignment
 fit$A
 ```
 
+## dia-PASEF Joint ICA/ALS Workflow
+
+For prepared dia-PASEF matrices, the joint ICA/ALS workflow estimates
+chromatographic profiles, ion-mobility profiles, and shared MS/MS spectra
+together. The model is:
+
+```text
+X = C A
+Y = M A
+```
+
+where `X` is the retention-time by fragment matrix, `Y` is the ion-mobility by
+fragment matrix, `C` contains chromatographic component profiles, `M` contains
+ion-mobility component profiles, and `A` contains shared MS/MS spectra.
+
+```r
+library(MS2DecR)
+
+data(diapasef_phospho_fig6)
+
+als <- jointALS(
+  X = diapasef_phospho_fig6$X,
+  Y = diapasef_phospho_fig6$Y,
+  com = 5,
+  lambda = 1e-6,
+  maxiter = 500
+)
+
+# Inspect peak-shape based component filtering
+als$peaks$component_table
+
+# Select components from the overcomplete result
+selected <- selectJointALSComponents(
+  als,
+  min_keep = 2,
+  max_keep = 5,
+  m_gap = 8,
+  m_max_local_peaks = 6,
+  m_smooth_width = 7,
+  m_local_peak_frac = 0.50,
+  m_require_filtered_close = FALSE
+)
+
+# Refit only the shared MS/MS spectra while keeping C and M fixed
+refit <- refitJointALSSpectra(
+  X = diapasef_phospho_fig6$X,
+  Y = diapasef_phospho_fig6$Y,
+  C = selected$C,
+  M = selected$M,
+  baseline = "window"
+)
+
+selected$component_table
+refit$A
+```
+
+If initial RT and IM profiles are already available, they can be passed through
+`C_init` and `M_init`. For example, model profiles from the joint MS-DIAL-like
+workflow can be used as initial values for `jointALS()`.
+
 ## ICA/ALS Deconvolution
 
 The main deconvolution workflow is implemented by `deconvICA()`. Use this
